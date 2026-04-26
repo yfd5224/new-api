@@ -375,10 +375,20 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, true)
 		common.SetContextKey(c, constant.ContextKeyChannelMultiKeyIndex, index)
 	} else {
-		// 必须设置为 false，否则在重试到单个 key 的时候会导致日志显示错误
 		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, false)
 	}
-	// c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", key))
+	tokenId := c.GetInt("token_id")
+	if tokenId > 0 {
+		overrideKey, err := model.GetOverrideKey(tokenId, channel.Id)
+		if err == nil && overrideKey != "" {
+			key = overrideKey
+			common.SetContextKey(c, constant.ContextKeyChannelKeyOverride, true)
+		} else {
+			common.SetContextKey(c, constant.ContextKeyChannelKeyOverride, false)
+		}
+	} else {
+		common.SetContextKey(c, constant.ContextKeyChannelKeyOverride, false)
+	}
 	common.SetContextKey(c, constant.ContextKeyChannelKey, key)
 	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, channel.GetBaseURL())
 

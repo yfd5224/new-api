@@ -46,6 +46,10 @@ import {
   Col,
   Row,
   InputNumber,
+  Table,
+  Input,
+  Select,
+  Popconfirm,
 } from '@douyinfe/semi-ui';
 import {
   IconCreditCard,
@@ -53,6 +57,8 @@ import {
   IconSave,
   IconClose,
   IconKey,
+  IconPlus,
+  IconDelete,
 } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../../../context/Status';
@@ -68,6 +74,10 @@ const EditTokenModal = (props) => {
   const [models, setModels] = useState([]);
   const [groups, setGroups] = useState([]);
   const [showQuotaInput, setShowQuotaInput] = useState(false);
+  const [overrides, setOverrides] = useState([]);
+  const [channels, setChannels] = useState([]);
+  const [newOverrideChannelId, setNewOverrideChannelId] = useState('');
+  const [newOverrideKey, setNewOverrideKey] = useState('');
   const isEdit = props.editingToken.id !== undefined;
 
   const getInitValues = () => ({
@@ -148,9 +158,65 @@ const EditTokenModal = (props) => {
         }
       }
       setGroups(localGroupOptions);
-      // if (statusState?.status?.default_use_auto_group && formApiRef.current) {
-      //   formApiRef.current.setValue('group', 'auto');
-      // }
+    } else {
+      showError(t(message));
+    }
+  };
+
+  const loadOverrides = async () => {
+    if (!props.editingToken.id) return;
+    let res = await API.get(`/api/token/${props.editingToken.id}/overrides`);
+    const { success, message, data } = res.data;
+    if (success) {
+      setOverrides(data || []);
+    } else {
+      showError(t(message));
+    }
+  };
+
+  const loadChannels = async () => {
+    let res = await API.get(`/api/channel/?p=0&size=1000`);
+    const { success, message, data } = res.data;
+    if (success) {
+      setChannels(data?.items || []);
+    } else {
+      showError(t(message));
+    }
+  };
+
+  const handleAddOverride = async () => {
+    if (!newOverrideChannelId) {
+      showError(t('请选择渠道'));
+      return;
+    }
+    if (!newOverrideKey) {
+      showError(t('请输入覆盖密钥'));
+      return;
+    }
+    let res = await API.post(`/api/token/${props.editingToken.id}/overrides`, {
+      token_id: parseInt(props.editingToken.id),
+      channel_id: parseInt(newOverrideChannelId),
+      override_key: newOverrideKey,
+    });
+    const { success, message } = res.data;
+    if (success) {
+      showSuccess(t('添加成功'));
+      setNewOverrideChannelId('');
+      setNewOverrideKey('');
+      loadOverrides();
+    } else {
+      showError(t(message));
+    }
+  };
+
+  const handleDeleteOverride = async (overrideId) => {
+    let res = await API.delete(
+      `/api/token/${props.editingToken.id}/overrides/${overrideId}`,
+    );
+    const { success, message } = res.data;
+    if (success) {
+      showSuccess(t('删除成功'));
+      loadOverrides();
     } else {
       showError(t(message));
     }
@@ -189,6 +255,10 @@ const EditTokenModal = (props) => {
     }
     loadModels();
     loadGroups();
+    if (isEdit) {
+      loadOverrides();
+      loadChannels();
+    }
   }, [props.editingToken.id]);
 
   useEffect(() => {
@@ -642,6 +712,113 @@ const EditTokenModal = (props) => {
                   </Col>
                 </Row>
               </Card>
+
+              {/* 渠道密钥覆盖 */}
+              {isEdit && (
+                <Card className='!rounded-2xl shadow-sm border-0'>
+                  <div className='flex items-center mb-2'>
+                    <Avatar
+                      size='small'
+                      color='orange'
+                      className='mr-2 shadow-md'
+                    >
+                      <IconKey size={16} />
+                    </Avatar>
+                    <div>
+                      <Text className='text-lg font-medium'>
+                        {t('渠道密钥覆盖')}
+                      </Text>
+                      <div className='text-xs text-gray-600'>
+                        {t(
+                          '为此令牌指定各渠道使用的上游密钥，不配置则使用渠道默认密钥',
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <Row gutter={12}>
+                    <Col span={24}>
+                      {overrides.length > 0 && (
+                        <Table
+                          dataSource={overrides}
+                          rowKey='id'
+                          size='small'
+                          pagination={false}
+                          columns={[
+                            {
+                              title: t('渠道'),
+                              dataIndex: 'channel_name',
+                              key: 'channel_name',
+                            },
+                            {
+                              title: t('覆盖密钥'),
+                              dataIndex: 'override_key',
+                              key: 'override_key',
+                              render: (text) => (
+                                <Text ellipsis={{ showTooltip: true }}>
+                                  {text}
+                                </Text>
+                              ),
+                            },
+                            {
+                              title: '',
+                              key: 'action',
+                              width: 60,
+                              render: (_, record) => (
+                                <Popconfirm
+                                  title={t('确认删除？')}
+                                  position='top'
+                                  onConfirm={() =>
+                                    handleDeleteOverride(record.id)
+                                  }
+                                >
+                                  <Button
+                                    type='danger'
+                                    theme='borderless'
+                                    size='small'
+                                    icon={<IconDelete />}
+                                  />
+                                </Popconfirm>
+                              ),
+                            },
+                          ]}
+                        />
+                      )}
+                    </Col>
+                    <Col span={24} className='mt-3'>
+                      <div className='flex gap-2 items-end'>
+                        <Select
+                          placeholder={t('选择渠道')}
+                          value={newOverrideChannelId || undefined}
+                          onChange={setNewOverrideChannelId}
+                          style={{ flex: 1 }}
+                          showClear
+                          filter
+                          autoAdjustOverflow
+                          dropdownStyle={{ minWidth: 280 }}
+                          optionList={channels.map((ch) => ({
+                            label: `${ch.name} (ID: ${ch.id})`,
+                            value: String(ch.id),
+                          }))}
+                        />
+                        <Input
+                          placeholder={t('输入覆盖密钥')}
+                          value={newOverrideKey}
+                          onChange={setNewOverrideKey}
+                          style={{ flex: 1 }}
+                        />
+                        <Button
+                          theme='solid'
+                          icon={<IconPlus />}
+                          onClick={handleAddOverride}
+                          disabled={!newOverrideChannelId || !newOverrideKey}
+                        >
+                          {t('添加')}
+                        </Button>
+                      </div>
+                    </Col>
+                  </Row>
+                </Card>
+              )}
             </div>
           )}
         </Form>

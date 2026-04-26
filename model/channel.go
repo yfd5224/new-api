@@ -531,6 +531,7 @@ func (channel *Channel) Delete() error {
 		return err
 	}
 	err = channel.DeleteAbilities()
+	_ = DeleteTokenChannelOverridesByChannelId(channel.Id)
 	return err
 }
 

@@ -326,6 +326,9 @@ func (token *Token) Delete() (err error) {
 		}
 	}()
 	err = DB.Delete(token).Error
+	if err == nil {
+		_ = DeleteTokenChannelOverridesByTokenId(token.Id)
+	}
 	return err
 }
 
